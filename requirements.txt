@@ -1,0 +1,75 @@
+# Dependencias principales para el sistema de agentes de IA
+
+# Manipulación de datos y análisis
+pandas>=1.5.0
+numpy>=1.20.0
+scipy>=1.9.0
+
+# Procesamiento de fechas y tiempo
+python-dateutil>=2.8.0
+
+# Manejo de expresiones regulares avanzadas
+regex>=2022.0.0
+
+# Estadísticas y matemáticas
+statistics-python>=0.1.0
+
+# Monitoreo de sistema (opcional - se instala si está disponible)
+psutil>=5.9.0
+
+# Serialización JSON mejorada
+orjson>=3.8.0
+
+# Manejo de configuraciones
+pyyaml>=6.0
+
+# Logging avanzado
+loguru>=0.6.0
+
+# Tests y desarrollo
+pytest>=7.0.0
+pytest-cov>=4.0.0
+
+# Documentación
+sphinx>=5.0.0
+sphinx-rtd-theme>=1.2.0
+
+# Jupyter para notebooks de ejemplo (opcional)
+jupyter>=1.0.0
+ipykernel>=6.0.0
+
+# Frameworks web (para ejemplos de APIs)
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# Base de datos
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+
+# Validación de datos
+pydantic>=2.5.0
+
+# Cliente HTTP para testing
+httpx>=0.25.0
+requests>=2.31.0
+
+# Herramientas de desarrollo
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.7.0
+
+# Seguridad
+cryptography>=41.0.0
+
+# Utilidades adicionales
+click>=8.1.0
+rich>=13.0.0
+tqdm>=4.66.0
+
+# Procesamiento de imágenes (para visualizaciones futuras)
+pillow>=10.0.0
+
+# Generación de IDs únicos
+uuid>=1.30
