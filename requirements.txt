@@ -1,75 +1,56 @@
-# Dependencias principales para el sistema de agentes de IA
+# Dependencias para PideBot - Agente de Delivery Inteligente
 
-# Manipulación de datos y análisis
-pandas>=1.5.0
-numpy>=1.20.0
-scipy>=1.9.0
+# Dependencias básicas de Python (incluidas por defecto)
+# - tkinter (GUI)
+# - threading (monitoreo proactivo)
+# - json (configuración y datos)
+# - datetime (timestamps)
+# - pathlib (manejo de rutas)
+# - dataclasses (modelos de datos)
+# - enum (estados de pedidos)
+# - uuid (IDs únicos)
+# - typing (type hints)
+# - re (expresiones regulares)
+# - time (delays)
+# - os, sys (sistema)
 
-# Procesamiento de fechas y tiempo
-python-dateutil>=2.8.0
+# Dependencias opcionales (mejoran la experiencia pero no son críticas)
 
-# Manejo de expresiones regulares avanzadas
-regex>=2022.0.0
+# Para logging avanzado con colores (opcional)
+# colorama>=0.4.0
 
-# Estadísticas y matemáticas
-statistics-python>=0.1.0
+# Para configuración mejorada (opcional)
+# pyyaml>=6.0
 
-# Monitoreo de sistema (opcional - se instala si está disponible)
-psutil>=5.9.0
+# Para validación de datos (opcional)
+# pydantic>=2.0.0
 
-# Serialización JSON mejorada
-orjson>=3.8.0
+# Para análisis de texto más avanzado (opcional)
+# nltk>=3.8
+# spacy>=3.7.0
 
-# Manejo de configuraciones
-pyyaml>=6.0
+# Para persistencia de datos (opcional)
+# sqlite3 (incluido en Python)
 
-# Logging avanzado
-loguru>=0.6.0
+# Para APIs reales (cuando se conecte a servicios reales)
+# requests>=2.31.0
+# aiohttp>=3.9.0
 
-# Tests y desarrollo
-pytest>=7.0.0
-pytest-cov>=4.0.0
+# Para testing (desarrollo)
+# pytest>=7.0.0
+# pytest-cov>=4.0.0
 
-# Documentación
-sphinx>=5.0.0
-sphinx-rtd-theme>=1.2.0
-
-# Jupyter para notebooks de ejemplo (opcional)
-jupyter>=1.0.0
-ipykernel>=6.0.0
-
-# Frameworks web (para ejemplos de APIs)
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-flask>=3.0.0
-flask-cors>=4.0.0
-
-# Base de datos
-sqlalchemy>=2.0.0
-alembic>=1.12.0
-
-# Validación de datos
-pydantic>=2.5.0
-
-# Cliente HTTP para testing
-httpx>=0.25.0
-requests>=2.31.0
-
-# Herramientas de desarrollo
-black>=23.0.0
-flake8>=6.0.0
-mypy>=1.7.0
-
-# Seguridad
-cryptography>=41.0.0
-
-# Utilidades adicionales
-click>=8.1.0
-rich>=13.0.0
-tqdm>=4.66.0
-
-# Procesamiento de imágenes (para visualizaciones futuras)
-pillow>=10.0.0
-
-# Generación de IDs únicos
-uuid>=1.30
+# ============================================
+# DEPENDENCIAS MÍNIMAS REQUERIDAS: NINGUNA
+# ============================================
+# 
+# PideBot está diseñado para funcionar con solo
+# las librerías estándar de Python 3.7+
+#
+# Todas las dependencias externas son opcionales
+# y el sistema funcionará perfectamente sin ellas.
+#
+# Para una instalación mínima, simplemente ejecuta:
+#   python launcher.py
+#
+# ============================================

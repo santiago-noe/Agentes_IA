@@ -1,6 +1,6 @@
 """
-Interfaz gráfica para el sistema de agentes de IA
-Proporciona una GUI sencilla para interactuar con todos los agentes
+Interfaz gráfica para PideBot - Agente de Delivery
+Proporciona una GUI intuitiva para interactuar con el agente de delivery
 """
 
 import tkinter as tk
@@ -14,534 +14,384 @@ import os
 # Agregar el directorio padre al path para imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-# Imports de agentes
-from agents.delivery_agent import DeliveryAgent
-from agents.reservation_agent import RestaurantReservationAgent
-from agents.room_design_agent import RoomDesignAgent
-from agents.api_generation_agent import APIGenerationAgent
+# Imports del agente de delivery
+from agents.delivery_agent import PideBot
 
-# Imports de sistemas core
-from core.prompt_manager import PromptManager, PromptCategory, PromptType
-from core.execution_monitor import ExecutionMonitor, ExecutionStatus
+# Imports de sistemas core (opcionales)
+try:
+    from core.logger import get_logger
+    from core.config import get_config
+except ImportError:
+    get_logger = None
+    get_config = None
 
 
-class AgentGUI:
-    """Interfaz gráfica principal para los agentes de IA"""
+class PideBotGUI:
+    """Interfaz gráfica principal para PideBot"""
     
     def __init__(self, root):
         self.root = root
-        self.root.title("🤖 Sistema de Agentes de IA")
-        self.root.geometry("1000x700")
-        self.root.configure(bg='#f0f0f0')
+        self.root.title("🤖 PideBot - Agente de Delivery Inteligente")
         
-        # Inicializar sistemas
-        self.prompt_manager = PromptManager()
-        self.execution_monitor = ExecutionMonitor()
+        # Inicializar sistemas primero
+        self.logger = get_logger("PideBotGUI") if get_logger else None
+        self.config = get_config() if get_config else None
         
-        # Inicializar agentes
-        self.delivery_agent = DeliveryAgent()
-        self.reservation_agent = RestaurantReservationAgent()
-        self.design_agent = RoomDesignAgent()
-        self.api_agent = APIGenerationAgent()
+        # Configurar ventana (ahora que config está disponible)
+        self._configurar_ventana()
         
-        # Variable para almacenar historial
+        # Inicializar PideBot con callbacks GUI
+        self.pidebot = PideBot(
+            notificar_usuario_callback=self._mostrar_notificacion,
+            preguntar_usuario_callback=self._preguntar_usuario_gui
+        )
+        
+        # Variables de estado
         self.conversation_history = []
+        self.waiting_for_response = False
         
         # Crear interfaz
-        self.create_widgets()
+        self._crear_interfaz()
         
-        # Configurar monitoreo
-        self.setup_monitoring()
-    
-    def setup_monitoring(self):
-        """Configura el monitoreo de agentes"""
-        def log_execution(record):
-            if record.status == ExecutionStatus.ERROR:
-                self.add_system_message(f"❌ Error en {record.agent_name}: {record.error_message}")
-            elif record.execution_time and record.execution_time > 3:
-                self.add_system_message(f"⚠️ Respuesta lenta en {record.agent_name}: {record.execution_time:.2f}s")
+        # Mostrar mensaje de bienvenida
+        self._agregar_mensaje("🤖 PideBot", self.pidebot._respuesta_bienvenida(), "bot")
         
-        self.execution_monitor.add_listener(log_execution)
+        if self.logger:
+            self.logger.info("PideBotGUI inicializada correctamente")
     
-    def create_widgets(self):
-        """Crea todos los widgets de la interfaz"""
+    def _configurar_ventana(self):
+        """Configura las propiedades básicas de la ventana"""
+        # Configurar tamaño y posición por defecto
+        ancho, alto = 1200, 800
+        
+        # Intentar obtener configuración personalizada
+        try:
+            if self.config and hasattr(self.config, 'gui'):
+                ancho = getattr(self.config.gui, 'window_width', 1200)
+                alto = getattr(self.config.gui, 'window_height', 800)
+        except (AttributeError, TypeError):
+            # Usar valores por defecto si hay problemas con la configuración
+            pass
+        
+        self.root.geometry(f"{ancho}x{alto}")
+        self.root.configure(bg='#f0f8ff')
+        
+        # Centrar ventana
+        try:
+            self.root.eval('tk::PlaceWindow . center')
+        except tk.TclError:
+            # Si no se puede centrar, usar posicionamiento manual
+            x = (self.root.winfo_screenwidth() // 2) - (ancho // 2)
+            y = (self.root.winfo_screenheight() // 2) - (alto // 2)
+            self.root.geometry(f"{ancho}x{alto}+{x}+{y}")
+        
+        # Configurar cierre
+        self.root.protocol("WM_DELETE_WINDOW", self._cerrar_aplicacion)
+        
+        # Configurar ícono (si está disponible)
+        try:
+            self.root.iconbitmap('icon.ico')
+        except:
+            pass  # No hay problema si no existe el ícono
+    
+    def _crear_interfaz(self):
+        """Crea todos los elementos de la interfaz"""
         # Frame principal
         main_frame = ttk.Frame(self.root, padding="10")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
-        # Configurar grid weights
+        # Configurar redimensionamiento
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
         main_frame.rowconfigure(1, weight=1)
         
         # Título
-        title_label = tk.Label(main_frame, text="🤖 Sistema de Agentes de IA", 
-                              font=('Arial', 16, 'bold'), bg='#f0f0f0')
-        title_label.grid(row=0, column=0, columnspan=2, pady=(0, 10))
+        title_label = ttk.Label(
+            main_frame, 
+            text="🤖 PideBot - Tu Asistente de Delivery",
+            font=('Segoe UI', 16, 'bold')
+        )
+        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 10))
         
-        # Panel izquierdo - Controles
-        control_frame = ttk.LabelFrame(main_frame, text="🎮 Controles", padding="10")
-        control_frame.grid(row=1, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(0, 10))
+        # Panel de conversación
+        self._crear_panel_conversacion(main_frame)
         
-        # Selector de agente
-        ttk.Label(control_frame, text="Seleccionar Agente:").grid(row=0, column=0, sticky=tk.W, pady=(0, 5))
+        # Panel de entrada
+        self._crear_panel_entrada(main_frame)
         
-        self.agent_var = tk.StringVar(value="auto")
-        agent_combo = ttk.Combobox(control_frame, textvariable=self.agent_var, state="readonly", width=20)
-        agent_combo['values'] = ("auto", "delivery", "reservas", "diseño", "api")
-        agent_combo.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
+        # Panel de estado
+        self._crear_panel_estado(main_frame)
         
-        # Área de entrada de texto
-        ttk.Label(control_frame, text="Tu solicitud:").grid(row=2, column=0, sticky=tk.W, pady=(0, 5))
+        # Panel de acciones rápidas
+        self._crear_panel_acciones(main_frame)
+    
+    def _crear_panel_conversacion(self, parent):
+        """Crea el panel de conversación"""
+        conv_frame = ttk.LabelFrame(parent, text="💬 Conversación", padding="5")
+        conv_frame.grid(row=1, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=(0, 10))
+        conv_frame.columnconfigure(0, weight=1)
+        conv_frame.rowconfigure(0, weight=1)
         
-        self.input_text = tk.Text(control_frame, height=4, width=30, wrap=tk.WORD)
-        self.input_text.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        # Botón enviar
-        self.send_button = ttk.Button(control_frame, text="🚀 Enviar", command=self.send_request)
-        self.send_button.grid(row=4, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        # Ejemplos de solicitudes
-        examples_frame = ttk.LabelFrame(control_frame, text="📝 Ejemplos", padding="5")
-        examples_frame.grid(row=5, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        examples = [
-            ("🍕 Delivery", "Quiero pedir comida italiana para 2 personas"),
-            ("🍽️ Reserva", "Mesa para 4 personas el viernes a las 8 PM"),
-            ("🏠 Diseño", "Diseñar dormitorio 4x5m, presupuesto $3000"),
-            ("⚙️ API", "Crear API para gestión de productos con CRUD")
-        ]
-        
-        for i, (title, example) in enumerate(examples):
-            btn = ttk.Button(examples_frame, text=title, 
-                           command=lambda e=example: self.set_example(e))
-            btn.grid(row=i, column=0, sticky=(tk.W, tk.E), pady=2)
-        
-        # Botones de acción adicionales
-        action_frame = ttk.LabelFrame(control_frame, text="🔧 Acciones", padding="5")
-        action_frame.grid(row=6, column=0, sticky=(tk.W, tk.E), pady=(0, 10))
-        
-        ttk.Button(action_frame, text="📊 Estado Sistema", 
-                  command=self.show_system_status).grid(row=0, column=0, sticky=(tk.W, tk.E), pady=2)
-        ttk.Button(action_frame, text="🗑️ Limpiar Chat", 
-                  command=self.clear_chat).grid(row=1, column=0, sticky=(tk.W, tk.E), pady=2)
-        ttk.Button(action_frame, text="💾 Exportar Chat", 
-                  command=self.export_chat).grid(row=2, column=0, sticky=(tk.W, tk.E), pady=2)
-        
-        # Panel derecho - Chat
-        chat_frame = ttk.LabelFrame(main_frame, text="💬 Conversación", padding="10")
-        chat_frame.grid(row=1, column=1, sticky=(tk.W, tk.E, tk.N, tk.S))
-        chat_frame.columnconfigure(0, weight=1)
-        chat_frame.rowconfigure(0, weight=1)
-        
-        # Área de chat con scroll
-        self.chat_area = scrolledtext.ScrolledText(chat_frame, wrap=tk.WORD, state=tk.DISABLED,
-                                                  font=('Consolas', 10), bg='white')
-        self.chat_area.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        # Área de texto para conversación
+        self.conversation_text = scrolledtext.ScrolledText(
+            conv_frame,
+            wrap=tk.WORD,
+            width=80,
+            height=20,
+            font=('Consolas', 10),
+            state=tk.DISABLED,
+            bg='#ffffff',
+            fg='#333333'
+        )
+        self.conversation_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # Configurar tags para colores
-        self.chat_area.tag_configure("user", foreground="blue", font=('Consolas', 10, 'bold'))
-        self.chat_area.tag_configure("agent", foreground="green", font=('Consolas', 10))
-        self.chat_area.tag_configure("system", foreground="orange", font=('Consolas', 9, 'italic'))
-        self.chat_area.tag_configure("error", foreground="red", font=('Consolas', 10, 'bold'))
-        
-        # Mensaje de bienvenida
-        self.add_agent_message("¡Hola! Soy tu asistente de IA. Puedes solicitar ayuda con delivery, reservas, diseño de habitaciones o generación de APIs. ¿En qué puedo ayudarte?")
-        
-        # Bind Enter key
-        self.input_text.bind('<Control-Return>', lambda e: self.send_request())
+        self.conversation_text.tag_configure("user", foreground="#0066cc", font=('Consolas', 10, 'bold'))
+        self.conversation_text.tag_configure("bot", foreground="#cc6600", font=('Consolas', 10))
+        self.conversation_text.tag_configure("notification", foreground="#009900", font=('Consolas', 10, 'italic'))
+        self.conversation_text.tag_configure("error", foreground="#cc0000", font=('Consolas', 10, 'bold'))
     
-    def set_example(self, example_text):
-        """Establece un ejemplo en el área de texto"""
-        self.input_text.delete(1.0, tk.END)
-        self.input_text.insert(1.0, example_text)
-    
-    def add_message(self, message, tag="agent"):
-        """Agrega un mensaje al área de chat"""
-        self.chat_area.config(state=tk.NORMAL)
-        timestamp = datetime.now().strftime("%H:%M:%S")
+    def _crear_panel_entrada(self, parent):
+        """Crea el panel de entrada de texto"""
+        entrada_frame = ttk.LabelFrame(parent, text="✏️ Tu Mensaje", padding="5")
+        entrada_frame.grid(row=2, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(0, 10))
+        entrada_frame.columnconfigure(0, weight=1)
         
-        if tag == "user":
-            self.chat_area.insert(tk.END, f"[{timestamp}] 👤 Tú: ", tag)
-        elif tag == "agent":
-            self.chat_area.insert(tk.END, f"[{timestamp}] 🤖 Agente: ", tag)
-        elif tag == "system":
-            self.chat_area.insert(tk.END, f"[{timestamp}] 🔧 Sistema: ", tag)
-        elif tag == "error":
-            self.chat_area.insert(tk.END, f"[{timestamp}] ❌ Error: ", tag)
-        
-        self.chat_area.insert(tk.END, f"{message}\n\n", tag)
-        self.chat_area.config(state=tk.DISABLED)
-        self.chat_area.see(tk.END)
-        
-        # Actualizar historial
-        self.conversation_history.append({
-            'timestamp': timestamp,
-            'type': tag,
-            'message': message
-        })
-    
-    def add_user_message(self, message):
-        """Agrega mensaje del usuario"""
-        self.add_message(message, "user")
-    
-    def add_agent_message(self, message):
-        """Agrega mensaje del agente"""
-        self.add_message(message, "agent")
-    
-    def add_system_message(self, message):
-        """Agrega mensaje del sistema"""
-        self.add_message(message, "system")
-    
-    def add_error_message(self, message):
-        """Agrega mensaje de error"""
-        self.add_message(message, "error")
-    
-    def send_request(self):
-        """Envía la solicitud al agente apropiado"""
-        user_input = self.input_text.get(1.0, tk.END).strip()
-        
-        if not user_input:
-            messagebox.showwarning("Entrada vacía", "Por favor ingresa una solicitud.")
-            return
-        
-        # Limpiar área de entrada
-        self.input_text.delete(1.0, tk.END)
-        
-        # Mostrar mensaje del usuario
-        self.add_user_message(user_input)
-        
-        # Deshabilitar botón mientras procesa
-        self.send_button.config(state="disabled", text="🔄 Procesando...")
-        
-        # Procesar en hilo separado para no bloquear la UI
-        def process_request():
-            try:
-                # Determinar agente
-                selected_agent = self.agent_var.get()
-                
-                if selected_agent == "auto":
-                    result = self.process_auto_request(user_input)
-                else:
-                    result = self.process_specific_agent(user_input, selected_agent)
-                
-                # Mostrar resultado en UI thread
-                self.root.after(0, lambda: self.display_result(result))
-                
-            except Exception as e:
-                self.root.after(0, lambda: self.add_error_message(f"Error inesperado: {str(e)}"))
-            finally:
-                self.root.after(0, lambda: self.send_button.config(state="normal", text="🚀 Enviar"))
-        
-        # Ejecutar en hilo separado
-        threading.Thread(target=process_request, daemon=True).start()
-    
-    def process_auto_request(self, user_input):
-        """Procesa solicitud con detección automática de agente"""
-        request_lower = user_input.lower()
-        
-        # Clasificar solicitud
-        if any(keyword in request_lower for keyword in ['delivery', 'comida', 'pedir', 'restaurante', 'entrega']):
-            return self.process_delivery_request(user_input)
-        elif any(keyword in request_lower for keyword in ['reserva', 'mesa', 'reservar', 'cena']):
-            return self.process_reservation_request(user_input)
-        elif any(keyword in request_lower for keyword in ['diseño', 'habitación', 'decorar', 'muebles', 'diseñar']):
-            return self.process_design_request(user_input)
-        elif any(keyword in request_lower for keyword in ['api', 'código', 'programar', 'desarrollar', 'generar']):
-            return self.process_api_request(user_input)
-        else:
-            return {
-                'agent': 'general',
-                'response': 'No estoy seguro de qué tipo de ayuda necesitas. ¿Podrías ser más específico? Puedo ayudarte con:\n\n🍕 Delivery de comida\n🍽️ Reservas en restaurantes\n🏠 Diseño de habitaciones\n⚙️ Generación de APIs'
-            }
-    
-    def process_specific_agent(self, user_input, agent_type):
-        """Procesa solicitud con agente específico"""
-        if agent_type == "delivery":
-            return self.process_delivery_request(user_input)
-        elif agent_type == "reservas":
-            return self.process_reservation_request(user_input)
-        elif agent_type == "diseño":
-            return self.process_design_request(user_input)
-        elif agent_type == "api":
-            return self.process_api_request(user_input)
-        else:
-            return {'agent': 'error', 'response': 'Agente no reconocido'}
-    
-    def process_delivery_request(self, user_input):
-        """Procesa solicitud de delivery"""
-        execution_id = self.execution_monitor.start_execution(
-            "delivery_agent", "delivery", {"request": user_input[:200]}
+        # Campo de entrada
+        self.entrada_text = tk.Text(
+            entrada_frame,
+            height=3,
+            wrap=tk.WORD,
+            font=('Segoe UI', 11)
         )
+        self.entrada_text.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
         
-        try:
-            response = self.delivery_agent.process_delivery_request(user_input)
-            
-            self.execution_monitor.end_execution(
-                execution_id, response, ExecutionStatus.SUCCESS
-            )
-            
-            return {
-                'agent': 'delivery',
-                'response': self.format_delivery_response(response),
-                'raw_response': response
-            }
-        except Exception as e:
-            self.execution_monitor.end_execution(
-                execution_id, None, ExecutionStatus.ERROR, str(e)
-            )
-            return {'agent': 'delivery', 'response': f'Error en delivery: {str(e)}'}
-    
-    def process_reservation_request(self, user_input):
-        """Procesa solicitud de reserva"""
-        execution_id = self.execution_monitor.start_execution(
-            "reservation_agent", "reservation", {"request": user_input[:200]}
+        # Botón enviar
+        self.enviar_btn = ttk.Button(
+            entrada_frame,
+            text="Enviar",
+            command=self._enviar_mensaje,
+            width=12
         )
+        self.enviar_btn.grid(row=0, column=1, sticky=(tk.N, tk.S))
         
-        try:
-            response = self.reservation_agent.handle_reservation_request(user_input)
-            
-            self.execution_monitor.end_execution(
-                execution_id, response, ExecutionStatus.SUCCESS
-            )
-            
-            return {
-                'agent': 'reservas',
-                'response': self.format_reservation_response(response),
-                'raw_response': response
-            }
-        except Exception as e:
-            self.execution_monitor.end_execution(
-                execution_id, None, ExecutionStatus.ERROR, str(e)
-            )
-            return {'agent': 'reservas', 'response': f'Error en reservas: {str(e)}'}
+        # Bind Enter para enviar
+        self.entrada_text.bind('<Control-Return>', lambda e: self._enviar_mensaje())
+        self.entrada_text.bind('<Return>', self._on_enter_key)
+        
+        # Focus inicial
+        self.entrada_text.focus()
     
-    def process_design_request(self, user_input):
-        """Procesa solicitud de diseño"""
-        execution_id = self.execution_monitor.start_execution(
-            "design_agent", "design", {"request": user_input[:200]}
-        )
+    def _crear_panel_estado(self, parent):
+        """Crea el panel de estado del sistema"""
+        estado_frame = ttk.LabelFrame(parent, text="📊 Estado del Sistema", padding="5")
+        estado_frame.grid(row=1, column=2, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(10, 0))
         
-        try:
-            # Parsear parámetros básicos (valores por defecto)
-            response = self.design_agent.generate_design(
-                room_type="dormitorio_grande",
-                room_dimensions="4x5m",
-                style_preference="moderno",
-                budget=3000
-            )
-            
-            self.execution_monitor.end_execution(
-                execution_id, response, ExecutionStatus.SUCCESS
-            )
-            
-            return {
-                'agent': 'diseño',
-                'response': self.format_design_response(response),
-                'raw_response': response
-            }
-        except Exception as e:
-            self.execution_monitor.end_execution(
-                execution_id, None, ExecutionStatus.ERROR, str(e)
-            )
-            return {'agent': 'diseño', 'response': f'Error en diseño: {str(e)}'}
-    
-    def process_api_request(self, user_input):
-        """Procesa solicitud de API"""
-        execution_id = self.execution_monitor.start_execution(
-            "api_agent", "api_generation", {"request": user_input[:200]}
-        )
-        
-        try:
-            response = self.api_agent.generate_api(
-                specification=user_input,
-                framework='fastapi',
-                format_type='natural'
-            )
-            
-            self.execution_monitor.end_execution(
-                execution_id, response, ExecutionStatus.SUCCESS
-            )
-            
-            return {
-                'agent': 'api',
-                'response': self.format_api_response(response),
-                'raw_response': response
-            }
-        except Exception as e:
-            self.execution_monitor.end_execution(
-                execution_id, None, ExecutionStatus.ERROR, str(e)
-            )
-            return {'agent': 'api', 'response': f'Error en API: {str(e)}'}
-    
-    def format_delivery_response(self, response):
-        """Formatea respuesta del agente de delivery"""
-        formatted = f"🍕 {response.get('response', 'Sin respuesta')}\n"
-        
-        if response.get('restaurants'):
-            formatted += "\n🏪 Restaurantes encontrados:\n"
-            for restaurant in response['restaurants'][:3]:  # Top 3
-                formatted += f"  • {restaurant['name']} ({restaurant.get('cuisine', ['N/A'])[0]}) - ⭐ {restaurant.get('rating', 'N/A')} - 🚚 {restaurant.get('delivery_time', 'N/A')} min\n"
-        
-        return formatted
-    
-    def format_reservation_response(self, response):
-        """Formatea respuesta del agente de reservas"""
-        formatted = f"🍽️ {response.get('response', 'Sin respuesta')}\n"
-        
-        if response.get('reservation'):
-            reservation = response['reservation']
-            formatted += f"\n📋 Detalles de la reserva:\n"
-            formatted += f"  • ID: {reservation.get('id', 'N/A')}\n"
-            formatted += f"  • Restaurante: {reservation.get('restaurant_name', 'N/A')}\n"
-            formatted += f"  • Fecha: {reservation.get('date', 'N/A')}\n"
-            formatted += f"  • Hora: {reservation.get('time', 'N/A')}\n"
-            formatted += f"  • Personas: {reservation.get('party_size', 'N/A')}\n"
-        
-        if response.get('alternatives'):
-            formatted += f"\n⏰ Horarios alternativos: {', '.join(response['alternatives'])}\n"
-        
-        return formatted
-    
-    def format_design_response(self, response):
-        """Formatea respuesta del agente de diseño"""
-        if 'error' in response:
-            return f"🏠 Error: {response['error']}"
-        
-        formatted = f"🏠 Diseño para {response.get('room_type', 'habitación')} creado exitosamente!\n"
-        formatted += f"\n💰 Presupuesto:\n"
-        formatted += f"  • Costo total: ${response.get('total_cost', 0):.0f}\n"
-        formatted += f"  • Presupuesto restante: ${response.get('budget_remaining', 0):.0f}\n"
-        formatted += f"  • Eficiencia del espacio: {response.get('area_efficiency', 0):.1f}%\n"
-        
-        shopping_list = response.get('shopping_list', [])
-        if shopping_list:
-            formatted += f"\n🛒 Lista de compras (top 5):\n"
-            for item in shopping_list[:5]:
-                formatted += f"  • {item.get('quantity', 1)}x {item.get('name', 'Item')} - ${item.get('total_price', 0):.0f}\n"
-        
-        recommendations = response.get('recommendations', [])
-        if recommendations:
-            formatted += f"\n💡 Recomendaciones:\n"
-            for rec in recommendations[:3]:
-                formatted += f"  • {rec}\n"
-        
-        return formatted
-    
-    def format_api_response(self, response):
-        """Formatea respuesta del agente de API"""
-        if 'error' in response:
-            return f"⚙️ Error: {response['error']}"
-        
-        formatted = f"⚙️ API generada exitosamente! (ID: {response.get('generation_id', 'N/A')})\n"
-        formatted += f"\n📊 Estadísticas:\n"
-        formatted += f"  • Framework: {response.get('framework', 'N/A')}\n"
-        formatted += f"  • Modelos: {response.get('models_count', 0)}\n"
-        formatted += f"  • Endpoints: {response.get('endpoints_count', 0)}\n"
-        formatted += f"  • Archivos generados: {len(response.get('generated_code', {}))}\n"
-        
-        generated_code = response.get('generated_code', {})
-        if generated_code:
-            formatted += f"\n📁 Archivos principales:\n"
-            for filename in list(generated_code.keys())[:5]:
-                formatted += f"  • {filename}\n"
-        
-        return formatted
-    
-    def display_result(self, result):
-        """Muestra el resultado en la interfaz"""
-        agent_name = result.get('agent', 'unknown')
-        response_text = result.get('response', 'Sin respuesta')
-        
-        # Agregar emoji según el agente
-        agent_emojis = {
-            'delivery': '🍕',
-            'reservas': '🍽️',
-            'diseño': '🏠',
-            'api': '⚙️',
-            'general': '🤖'
+        # Variables de estado
+        self.estado_vars = {
+            "pedidos_activos": tk.StringVar(value="0"),
+            "monitoreo_activo": tk.StringVar(value="No"),
+            "esperando_confirmacion": tk.StringVar(value="No")
         }
         
-        emoji = agent_emojis.get(agent_name, '🤖')
-        formatted_response = f"[{emoji} {agent_name.upper()}]\n\n{response_text}"
+        # Labels de estado
+        row = 0
+        for key, var in self.estado_vars.items():
+            label_name = key.replace('_', ' ').title()
+            ttk.Label(estado_frame, text=f"{label_name}:").grid(row=row, column=0, sticky=tk.W, pady=2)
+            ttk.Label(estado_frame, textvariable=var, font=('Consolas', 9, 'bold')).grid(row=row, column=1, sticky=tk.W, padx=(5, 0), pady=2)
+            row += 1
         
-        self.add_agent_message(formatted_response)
+        # Botón actualizar estado
+        ttk.Button(
+            estado_frame,
+            text="🔄 Actualizar",
+            command=self._actualizar_estado,
+            width=15
+        ).grid(row=row, column=0, columnspan=2, pady=(10, 0))
     
-    def show_system_status(self):
-        """Muestra el estado del sistema"""
+    def _crear_panel_acciones(self, parent):
+        """Crea el panel de acciones rápidas"""
+        acciones_frame = ttk.LabelFrame(parent, text="⚡ Acciones Rápidas", padding="5")
+        acciones_frame.grid(row=2, column=2, sticky=(tk.W, tk.E), padx=(10, 0))
+        
+        # Botones de acciones rápidas
+        acciones = [
+            ("🍔 Hamburguesa Bembos", "Quiero una hamburguesa doble con queso de Bembos"),
+            ("🍗 Pollo Norky's", "Quiero un cuarto de pollo a la brasa de Norky's"),
+            ("📍 Estado Pedido", "¿Dónde está mi pedido?"),
+            ("🧹 Limpiar Chat", self._limpiar_conversacion),
+        ]
+        
+        for i, (texto, accion) in enumerate(acciones):
+            if callable(accion):
+                comando = accion
+            else:
+                comando = lambda msg=accion: self._enviar_mensaje_rapido(msg)
+            
+            ttk.Button(
+                acciones_frame,
+                text=texto,
+                command=comando,
+                width=20
+            ).grid(row=i, column=0, pady=2, sticky=tk.W)
+    
+    def _on_enter_key(self, event):
+        """Maneja la tecla Enter"""
+        if event.state & 0x4:  # Ctrl+Enter
+            return
+        else:  # Enter solo
+            self._enviar_mensaje()
+            return 'break'  # Prevenir salto de línea
+    
+    def _enviar_mensaje(self):
+        """Envía un mensaje a PideBot"""
+        if self.waiting_for_response:
+            messagebox.showwarning("Esperando", "Por favor espera la respuesta anterior")
+            return
+        
+        mensaje = self.entrada_text.get("1.0", tk.END).strip()
+        
+        if not mensaje:
+            return
+        
+        # Limpiar entrada
+        self.entrada_text.delete("1.0", tk.END)
+        
+        # Mostrar mensaje del usuario
+        self._agregar_mensaje("👤 Tú", mensaje, "user")
+        
+        # Procesar en hilo separado
+        self.waiting_for_response = True
+        self.enviar_btn.configure(state='disabled', text="Procesando...")
+        
+        threading.Thread(
+            target=self._procesar_mensaje,
+            args=(mensaje,),
+            daemon=True
+        ).start()
+    
+    def _enviar_mensaje_rapido(self, mensaje):
+        """Envía un mensaje predefinido"""
+        self.entrada_text.delete("1.0", tk.END)
+        self.entrada_text.insert("1.0", mensaje)
+        self._enviar_mensaje()
+    
+    def _procesar_mensaje(self, mensaje):
+        """Procesa el mensaje en hilo separado"""
         try:
-            overview = self.execution_monitor.get_system_overview(hours=1)
+            respuesta = self.pidebot.procesar_solicitud(mensaje)
             
-            status_text = f"📊 Estado del Sistema:\n\n"
-            status_text += f"🔢 Ejecuciones totales: {overview.get('total_executions', 0)}\n"
-            status_text += f"🤖 Agentes únicos: {overview.get('unique_agents', 0)}\n"
-            status_text += f"✅ Tasa de éxito: {overview.get('overall_success_rate', 0):.1%}\n"
-            status_text += f"⏱️ Tiempo promedio: {overview.get('avg_response_time', 0):.2f}s\n"
-            status_text += f"🏆 Agente más activo: {overview.get('most_active_agent', 'N/A')}\n"
-            
-            # Obtener estadísticas de prompts
-            prompt_stats = self.prompt_manager.get_usage_statistics()
-            status_text += f"\n💬 Sistema de Prompts:\n"
-            status_text += f"  • Templates registrados: {prompt_stats.get('templates_registered', 0)}\n"
-            status_text += f"  • Prompts utilizados: {prompt_stats.get('total_prompts_used', 0)}\n"
-            
-            self.add_system_message(status_text)
+            # Mostrar respuesta en UI thread
+            self.root.after(0, self._mostrar_respuesta, respuesta)
             
         except Exception as e:
-            self.add_error_message(f"Error obteniendo estado: {str(e)}")
+            error_msg = f"Error procesando mensaje: {e}"
+            if self.logger:
+                self.logger.error(error_msg, exc_info=True)
+            self.root.after(0, self._mostrar_error, error_msg)
+        
+        finally:
+            self.root.after(0, self._habilitar_entrada)
     
-    def clear_chat(self):
-        """Limpia el área de chat"""
-        if messagebox.askyesno("Confirmar", "¿Estás seguro de que quieres limpiar la conversación?"):
-            self.chat_area.config(state=tk.NORMAL)
-            self.chat_area.delete(1.0, tk.END)
-            self.chat_area.config(state=tk.DISABLED)
-            self.conversation_history = []
-            self.add_agent_message("Conversación reiniciada. ¿En qué puedo ayudarte?")
+    def _mostrar_respuesta(self, respuesta):
+        """Muestra la respuesta de PideBot"""
+        self._agregar_mensaje("🤖 PideBot", respuesta, "bot")
+        self._actualizar_estado()
     
-    def export_chat(self):
-        """Exporta la conversación a un archivo"""
+    def _mostrar_error(self, error):
+        """Muestra un error"""
+        self._agregar_mensaje("❌ Error", error, "error")
+    
+    def _habilitar_entrada(self):
+        """Habilita la entrada de nuevo"""
+        self.waiting_for_response = False
+        self.enviar_btn.configure(state='normal', text="Enviar")
+        self.entrada_text.focus()
+    
+    def _agregar_mensaje(self, remitente, mensaje, tipo):
+        """Agrega un mensaje al área de conversación"""
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        
+        self.conversation_text.configure(state=tk.NORMAL)
+        
+        # Agregar timestamp y remitente
+        self.conversation_text.insert(tk.END, f"[{timestamp}] {remitente}:\n", tipo)
+        
+        # Agregar mensaje
+        self.conversation_text.insert(tk.END, f"{mensaje}\n\n")
+        
+        self.conversation_text.configure(state=tk.DISABLED)
+        self.conversation_text.see(tk.END)
+        
+        # Guardar en historial
+        self.conversation_history.append({
+            "timestamp": timestamp,
+            "remitente": remitente,
+            "mensaje": mensaje,
+            "tipo": tipo
+        })
+    
+    def _mostrar_notificacion(self, mensaje):
+        """Callback para notificaciones de PideBot"""
+        self.root.after(0, self._agregar_mensaje, "🔔 Notificación", mensaje, "notification")
+    
+    def _preguntar_usuario_gui(self, pregunta):
+        """Callback para preguntas de PideBot (modo GUI)"""
+        # En modo GUI, simplemente mostramos la pregunta y esperamos respuesta normal
+        self.root.after(0, self._agregar_mensaje, "❓ PideBot", pregunta, "bot")
+        return ""  # Retornamos vacío, la respuesta vendrá por el chat normal
+    
+    def _actualizar_estado(self):
+        """Actualiza el estado del sistema"""
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = f"conversacion_agentes_{timestamp}.json"
+            estado = self.pidebot.obtener_estado_sistema()
             
-            export_data = {
-                'timestamp': datetime.now().isoformat(),
-                'conversation_history': self.conversation_history,
-                'system_info': self.execution_monitor.get_system_overview(hours=24)
-            }
-            
-            with open(filename, 'w', encoding='utf-8') as f:
-                json.dump(export_data, f, indent=2, ensure_ascii=False)
-            
-            self.add_system_message(f"Conversación exportada a: {filename}")
+            self.estado_vars["pedidos_activos"].set(str(estado.get("pedidos_activos", 0)))
+            self.estado_vars["monitoreo_activo"].set("Sí" if estado.get("monitoreo_activo", False) else "No")
+            self.estado_vars["esperando_confirmacion"].set("Sí" if estado.get("esperando_confirmacion", False) else "No")
             
         except Exception as e:
-            self.add_error_message(f"Error exportando: {str(e)}")
+            if self.logger:
+                self.logger.error(f"Error actualizando estado: {e}")
+    
+    def _limpiar_conversacion(self):
+        """Limpia el área de conversación"""
+        respuesta = messagebox.askyesno("Confirmar", "¿Limpiar toda la conversación?")
+        if respuesta:
+            self.conversation_text.configure(state=tk.NORMAL)
+            self.conversation_text.delete("1.0", tk.END)
+            self.conversation_text.configure(state=tk.DISABLED)
+            self.conversation_history.clear()
+            
+            # Mostrar mensaje de bienvenida nuevamente
+            self._agregar_mensaje("🤖 PideBot", self.pidebot._respuesta_bienvenida(), "bot")
+    
+    def _cerrar_aplicacion(self):
+        """Maneja el cierre de la aplicación"""
+        if messagebox.askokcancel("Salir", "¿Deseas cerrar PideBot?"):
+            if self.logger:
+                self.logger.info("Aplicación cerrada por el usuario")
+            self.root.destroy()
+
+
+# Alias para compatibilidad hacia atrás
+AgentGUI = PideBotGUI
 
 
 def main():
     """Función principal para ejecutar la GUI"""
+    root = tk.Tk()
+    app = PideBotGUI(root)
+    
     try:
-        # Crear ventana principal
-        root = tk.Tk()
-        
-        # Inicializar aplicación
-        app = AgentGUI(root)
-        
-        # Configurar cierre de ventana
-        def on_closing():
-            if messagebox.askokcancel("Salir", "¿Quieres cerrar el sistema de agentes?"):
-                root.destroy()
-        
-        root.protocol("WM_DELETE_WINDOW", on_closing)
-        
-        # Ejecutar aplicación
         root.mainloop()
-        
+    except KeyboardInterrupt:
+        print("Aplicación interrumpida")
     except Exception as e:
-        messagebox.showerror("Error Fatal", f"Error al inicializar la aplicación:\n{str(e)}")
+        print(f"Error en la aplicación: {e}")
+        messagebox.showerror("Error crítico", f"Error inesperado: {e}")
 
 
 if __name__ == "__main__":
